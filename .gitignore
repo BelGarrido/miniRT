@@ -5,6 +5,7 @@
 *.o
 *.ko
 *.elf
+*.bo
 
 # Linker output
 *.ilk
