@@ -3,6 +3,7 @@
 
 # include "vec3.h"
 # include "ray.h"
+# include "material_bonus.h"
 
 # ifndef SCENE_HEADER
 #  define SCENE_HEADER "scene.h"

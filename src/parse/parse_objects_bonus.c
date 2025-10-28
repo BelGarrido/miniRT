@@ -4,6 +4,7 @@
 #include "../../include/parser_internal_bonus.h"
 #include "../../include/bump_bonus.h"
 
+
 static t_parse_result	object_error(t_object *obj, int line, const char *msg)
 {
 	if (obj)
@@ -26,7 +27,7 @@ static int	parse_optional_checker(char **tokens, int idx, int *has_checker, floa
 		return (1);
 	if (ft_strncmp(tokens[idx], "cb", 3) != 0)
 		return (0);
-	if (!tokens[idx + 1] || tokens[idx + 2]) // solo "cb <scale>" y fin
+	if (!tokens[idx + 1] /* || tokens[idx + 2] */) // solo "cb <scale>" y fin
 		return (0);
 	if (!parse_float(tokens[idx + 1], out_scale) || *out_scale <= 0.0f)
 		return (0);
@@ -43,7 +44,7 @@ static int parse_optional_bump(char **tokens, int idx, int *has_bump,
 		return (1);
 	if (ft_strncmp(tokens[idx], "bm", 3) != 0)
 		return (1);
-	if (!tokens[idx + 1] || !tokens[idx + 2] || tokens[idx + 3])
+	if (!tokens[idx + 1] || !tokens[idx + 2] /* || tokens[idx + 3] */)
 		return (0);
 	if (!parse_float(tokens[idx + 2], out_strength) || *out_strength < 0.0f)
 		return (0);
@@ -54,7 +55,22 @@ static int parse_optional_bump(char **tokens, int idx, int *has_bump,
 	return (1);
 }
 
-t_parse_result	parse_sp(char **tokens, int line, t_scene *scene)
+bool parse_material(char **tokens, int line, t_object *obj)
+{
+	if(!parse_float(tokens[0], &obj->u_obj.sp.material->ks))
+	{
+		object_error(obj, line, "sp: invalid ks");
+		return(false);
+	}	
+	if(!parse_float(tokens[1], &obj->u_obj.sp.material->shininess))
+	{
+		object_error(obj, line, "sp: invalid shininess");
+		return(false);
+	}
+	return (true);
+}
+
+t_parse_result	parse_sp_bo(char **tokens, int line, t_scene *scene)
 {
 	t_object	*obj;
 	int			done;
@@ -79,11 +95,49 @@ t_parse_result	parse_sp(char **tokens, int line, t_scene *scene)
 	if (tokens[4] && ft_strncmp(tokens[4], "bm", 3) == 0)
 		done = parse_optional_bump(tokens, 4, &obj->u_obj.sp.has_bump,
 				&obj->u_obj.sp.bump_strength, &obj->u_obj.sp.bump);
-	else
+	else if (tokens[4] && ft_strncmp(tokens[4], "bm", 3) == 0)
 		done = parse_optional_checker(tokens, 4, &obj->u_obj.sp.has_checker,
 				&obj->u_obj.sp.checker_scale);
+	else
+		done = 1;
+    /* determine where ks/shininess appear after optional bm/cb */
+    int next_idx;
+    if (obj->u_obj.sp.has_bump)
+        next_idx = 7; /* bm: tokens 4(path) 5(strength) 6 -> ks at 7 */
+    else if (obj->u_obj.sp.has_checker)
+        next_idx = 6; /* cb: tokens 4(cb) 5(scale) -> ks at 6 */
+    else
+	{
+        next_idx = 4; /* no optional -> ks at 4 */
+	}
+
+
+	
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    /* parse optional material (ks + shininess) if present */
+	if (tokens[next_idx])
+	{
+		if (!tokens[next_idx + 1])
+			return (object_error(obj, line, "sp: missing shininess after ks"));
+		obj->u_obj.sp.material = malloc(sizeof(*obj->u_obj.sp.material));
+		if (!obj->u_obj.sp.material)
+			return (parse_error(line, "sp: not enough memory for material"));
+		if (!parse_material(&tokens[next_idx], line, obj))
+		{
+			free(obj->u_obj.sp.material);
+			return (object_error(obj, line, "sp: invalid ks"));
+		}
+	}
+    else
+	{
+        obj->u_obj.sp.material = NULL;
+	}
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	if (!done)
+	{
 		return (object_error(obj, line, "sp: invalid checker (cb <scale>)"));
+	
+	}
 	obj->next = NULL;
 	scene_add_object(scene, obj);
 	return (parse_ok());
@@ -93,6 +147,7 @@ t_parse_result	parse_sp(char **tokens, int line, t_scene *scene)
 * Steps: Allocate, decode center/diameter/color, and insert into the scene.
 * Errors: Frees the object and returns a detailed message on failure.
 */
+
 
 static void	plane_build_basis(t_plane *pl)
 {
@@ -109,7 +164,7 @@ static void	plane_build_basis(t_plane *pl)
 
 // Nota: usamos la función unificada para todas las figuras
 
-t_parse_result	parse_pl(char **tokens, int line, t_scene *scene)
+t_parse_result	parse_pl_bo(char **tokens, int line, t_scene *scene)
 {
 	t_object	*obj;
 
@@ -142,6 +197,36 @@ t_parse_result	parse_pl(char **tokens, int line, t_scene *scene)
 	else if (!parse_optional_checker(tokens, 4, &obj->u_obj.pl.has_checker,
 			&obj->u_obj.pl.checker_scale))
 		return (object_error(obj, line, "pl: invalid checker (cb <scale>)"));
+	    /* determine where ks/shininess appear after optional bm/cb */
+    int next_idx;
+    if (obj->u_obj.pl.has_bump)
+        next_idx = 7; /* bm: tokens 4(path) 5(strength) 6 -> ks at 7 */
+    else if (obj->u_obj.pl.has_checker)
+        next_idx = 6; /* cb: tokens 4(cb) 5(scale) -> ks at 6 */
+    else
+	{
+        next_idx = 4; /* no optional -> ks at 4 */
+	}
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    /* parse optional material (ks + shininess) if present */
+	if (tokens[next_idx])
+	{
+		if (!tokens[next_idx + 1])
+			return (object_error(obj, line, "pl: missing shininess after ks"));
+		obj->u_obj.pl.material = malloc(sizeof(*obj->u_obj.pl.material));
+		if (!obj->u_obj.pl.material)
+			return (parse_error(line, "pl: not enough memory for material"));
+		if (!parse_material(&tokens[next_idx], line, obj))
+		{
+			free(obj->u_obj.pl.material);
+			return (object_error(obj, line, "pl: invalid ks"));
+		}
+	}
+    else
+	{
+        obj->u_obj.pl.material = NULL;
+	}
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	obj->next = NULL;
 	scene_add_object(scene, obj);
 	return (parse_ok());
@@ -152,7 +237,7 @@ t_parse_result	parse_pl(char **tokens, int line, t_scene *scene)
 * Guarantees: Rejects malformed data and cleans up allocations on error.
 */
 
-t_parse_result	parse_cy(char **tkns, int line, t_scene *scene)
+t_parse_result	parse_cy_bo(char **tkns, int line, t_scene *scene)
 {
 	t_object	*obj;
 
@@ -176,6 +261,36 @@ t_parse_result	parse_cy(char **tkns, int line, t_scene *scene)
 		return (object_error(obj, line, "cy: invalid height"));
 	if (!parse_color_255(tkns[5], &obj->u_obj.cy.color))
 		return (object_error(obj, line, "cy: invalid color"));
+	    /* determine where ks/shininess appear after optional bm/cb */
+    int next_idx;
+    if (obj->u_obj.cy.has_bump)
+        next_idx = 7; /* bm: tokens 4(path) 5(strength) 6 -> ks at 7 */
+    //else if (obj->u_obj.cy.has_checker)
+        //next_idx = 6; /* cb: tokens 4(cb) 5(scale) -> ks at 6
+    else
+	{
+        next_idx = 4; /* no optional -> ks at 4 */
+	}
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    /* parse optional material (ks + shininess) if present */
+	if (tkns[next_idx])
+	{
+		if (!tkns[next_idx + 1])
+			return (object_error(obj, line, "cy: missing shininess after ks"));
+		obj->u_obj.cy.material = malloc(sizeof(*obj->u_obj.cy.material));
+		if (!obj->u_obj.cy.material)
+			return (parse_error(line, "cy: not enough memory for material"));
+		if (!parse_material(&tkns[next_idx], line, obj))
+		{
+			free(obj->u_obj.cy.material);
+			return (object_error(obj, line, "cy: invalid ks"));
+		}
+	}
+    else
+	{
+        obj->u_obj.cy.material = NULL;
+	}
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	obj->next = NULL;
 	scene_add_object(scene, obj);
 	return (parse_ok());
@@ -266,11 +381,41 @@ t_parse_result	parse_hp(char **tok, int line, t_scene *scene)
     }
     else
     {
-	cbcons = parse_optional_checker(tok, 7, &obj->u_obj.hp.has_checker,
+		cbcons = parse_optional_checker(tok, 7, &obj->u_obj.hp.has_checker,
 		&obj->u_obj.hp.checker_scale);
 	if (!cbcons)
 	    return (object_error(obj, line, "hp: invalid checker (cb <scale>)"));
     }
+	    /* determine where ks/shininess appear after optional bm/cb */
+    int next_idx;
+    if (obj->u_obj.hp.has_bump)
+        next_idx = 7; /* bm: tokens 4(path) 5(strength) 6 -> ks at 7 */
+    else if (obj->u_obj.hp.has_checker)
+        next_idx = 6; /* cb: tokens 4(cb) 5(scale) -> ks at 6 */
+    else
+	{
+        next_idx = 4; /* no optional -> ks at 4 */
+	}
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    /* parse optional material (ks + shininess) if present */
+	if (tok[next_idx])
+	{
+		if (!tok[next_idx + 1])
+			return (object_error(obj, line, "hp: missing shininess after ks"));
+		obj->u_obj.hp.material = malloc(sizeof(*obj->u_obj.hp.material));
+		if (!obj->u_obj.hp.material)
+			return (parse_error(line, "hp: not enough memory for material"));
+		if (!parse_material(&tok[next_idx], line, obj))
+		{
+			free(obj->u_obj.hp.material);
+			return (object_error(obj, line, "hp: invalid ks"));
+		}
+	}
+    else
+	{
+        obj->u_obj.hp.material = NULL;
+	}
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	scene_add_object(scene, obj);
 	return (parse_ok());
 }
@@ -322,6 +467,36 @@ t_parse_result	parse_tr(char **tokens, int line, t_scene *scene)
 	    return (object_error(obj, line, "tr: invalid checker (cb <scale>)"));
     }
 	obj->next = NULL;
+	    /* determine where ks/shininess appear after optional bm/cb */
+    int next_idx;
+    if (obj->u_obj.tr.has_bump)
+        next_idx = 7; /* bm: tokens 4(path) 5(strength) 6 -> ks at 7 */
+    else if (obj->u_obj.tr.has_checker)
+        next_idx = 6; /* cb: tokens 4(cb) 5(scale) -> ks at 6 */
+    else
+	{
+        next_idx = 4; /* no optional -> ks at 4 */
+	}
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    /* parse optional material (ks + shininess) if present */
+	if (tokens[next_idx])
+	{
+		if (!tokens[next_idx + 1])
+			return (object_error(obj, line, "tr: missing shininess after ks"));
+		obj->u_obj.tr.material = malloc(sizeof(*obj->u_obj.tr.material));
+		if (!obj->u_obj.tr.material)
+			return (parse_error(line, "tr: not enough memory for material"));
+		if (!parse_material(&tokens[next_idx], line, obj))
+		{
+			free(obj->u_obj.tr.material);
+			return (object_error(obj, line, "tr: invalid ks"));
+		}
+	}
+    else
+	{
+        obj->u_obj.tr.material = NULL;
+	}
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	scene_add_object(scene, obj);
 	return (parse_ok());
 }

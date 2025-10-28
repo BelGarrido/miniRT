@@ -13,7 +13,6 @@ OBJ_DIR     = obj
 COMMON_SRCS = \
 	$(SRC_DIR)/color/color.c \
 	$(SRC_DIR)/core/ray.c \
-	$(SRC_DIR)/core/scene.c \
 	$(SRC_DIR)/math/vec3.c \
 	$(SRC_DIR)/math/math_utils.c \
 	$(SRC_DIR)/camera/camera.c \
@@ -43,6 +42,7 @@ GEOM_M_SRCS = \
 CORE_M_SRCS = \
 	$(SRC_DIR)/core/intersect.c \
 	$(SRC_DIR)/shading/lambert.c \
+	$(SRC_DIR)/core/scene.c \
 	$(SRC_DIR)/render/render.c 
 
 MAIN_M      = $(SRC_DIR)/minirt.c
@@ -73,7 +73,8 @@ CORE_B_SRCS = \
     $(SRC_DIR)/core/intersect_bonus.c \
     $(SRC_DIR)/shading/bump_bonus.c \
     $(SRC_DIR)/shading/lambert_bonus.c \
-    $(SRC_DIR)/render/render_bonus.c
+    $(SRC_DIR)/render/render_bonus.c \
+	$(SRC_DIR)/core/scene_bonus.c
 
 MAIN_B      = $(SRC_DIR)/minirt_bonus.c
 SRCS_B      = $(PARSE_B_SRCS) $(COMMON_SRCS) $(GEOM_B_SRCS) $(CORE_B_SRCS) $(MAIN_B)

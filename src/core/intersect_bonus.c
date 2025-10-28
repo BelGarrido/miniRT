@@ -3,6 +3,37 @@
 #include "../../include/hit_bonus.h"
 #include "../../include/bump_bonus.h"
 
+//Ispecular​=ks​⋅Ilight​⋅max(0,N⋅H)α
+t_vec3 specular_blinn_phong(const t_scene *scene, const t_hit *hit, t_material *material)
+{
+
+	if (!material || !hit->ok)
+		return v3(0.0f, 0.0f, 0.0f);
+	//t_vec3 p = hit->p;
+	t_vec3 n = v3_norm(hit->n); //
+	t_vec3 l = v3_norm(v3_sub(scene->light.pos, hit->p)); //direccion hacia la luz
+	t_vec3 v = v3_norm(v3_sub(scene->camera.pos, hit->p)); // direccion hacia la camara
+	t_vec3 h = v3_norm(v3_add(l, v));
+	//t_vec3 albedo =  material.albedo;
+	float ks = material->ks;
+	float shininess = material->shininess;
+
+
+	//ks * (scene->light.pos * (n*h))shinniness;
+	//v3_dot(n, h); mide cuanto el vector halfway se alinea con la normal, cuanto mayor es mas fuerte es el reflejo
+	//n⋅h=cos(θ)
+	//donde θ es el ángulo entre la normal y el vector halfway
+	t_vec3 light_intensity = v3_mul(scene->light.color, scene->light.bright);
+	float spec_angle = v3_dot(n, h);
+	if(spec_angle < 0.0f)
+		spec_angle = 0.0f;
+	float spec_intensity = powf(spec_angle, shininess);
+	//printf("ks: %f, shininess: %f\n", ks, shininess);
+	//printf("spec_angle: %f, spec_intensity: %f\n", spec_angle, spec_intensity);
+	t_vec3 spec_color = v3_mul(v3_mul(light_intensity, spec_intensity), ks);
+	return (spec_color);
+}
+
 static void	set_common_hit(t_hit *dst, float t, t_vec3 p, t_vec3 n, t_vec3 albedo)
 {
 	dst->ok = 1;
@@ -18,7 +49,7 @@ static void	orient_normal(t_hit *hit, t_ray r)
 		hit->n = v3_mul(hit->n, -1.0f);
 }
 
-static int	record_sphere(const t_sphere *sp, t_ray r, float t, t_hit *out)
+static int	record_sphere(const t_scene *scene, const t_sphere *sp, t_ray r, float t, t_hit *out)
 {
 	t_vec3	p;
 	t_vec3	n;
@@ -61,11 +92,16 @@ static int	record_sphere(const t_sphere *sp, t_ray r, float t, t_hit *out)
 		bit = v3_cross(n, tan);
 		bump_perturb(sp->bump, u, v, tan, bit, sp->bump_strength, &out->n);
 	}
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	if(sp->material)
+		out->specular = specular_blinn_phong(scene, out, sp->material);
+	else
+		out->specular = v3(0.0f, 0.0f, 0.0f);
 	orient_normal(out, r);
 	return (1);
 }
 
-static int	record_plane(const t_plane *pl, t_ray r, float t, t_hit *out)
+static int	record_plane(const t_scene *scene, const t_plane *pl, t_ray r, float t, t_hit *out)
 {
 	t_vec3	p;
 	t_vec3	rel;
@@ -97,11 +133,16 @@ static int	record_plane(const t_plane *pl, t_ray r, float t, t_hit *out)
 		v = v3_dot(rel, pl->v) / (pl->checker_scale > 0.0f ? pl->checker_scale : 1.0f);
 		bump_perturb(pl->bump, u, v, pl->u, pl->v, pl->bump_strength, &out->n);
 	}
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	if(pl->material)
+		out->specular = specular_blinn_phong(scene, out, pl->material);
+	else
+		out->specular = v3(0.0f, 0.0f, 0.0f);
 	orient_normal(out, r);
 	return (1);
 }
 
-static int	record_triangle(const t_triangle *tr, t_ray r, float t, t_hit *out)
+static int	record_triangle(const t_scene *scene, const t_triangle *tr, t_ray r, float t, t_hit *out)
 {
     t_vec3	p;
     t_vec3	e1;
@@ -148,6 +189,11 @@ static int	record_triangle(const t_triangle *tr, t_ray r, float t, t_hit *out)
             bump_perturb(tr->bump, u, v, tan, bit, tr->bump_strength, &out->n);
         }
     }
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	if(tr->material)
+		out->specular = specular_blinn_phong(scene, out, tr->material);
+	else
+		out->specular = v3(0.0f, 0.0f, 0.0f);
     orient_normal(out, r);
     return (1);
 }
@@ -163,7 +209,7 @@ static t_vec3	hp_checker_color(const t_hparab *hp, float x, float y)
 	return (hp->color);
 }
 
-static int	record_hparaboloid(const t_hparab *hp, t_ray r, float t, t_hit *out)
+static int	record_hparaboloid(const t_scene *scene, const t_hparab *hp, t_ray r, float t, t_hit *out)
 {
     t_vec3	p;
     float	x;
@@ -191,6 +237,11 @@ static int	record_hparaboloid(const t_hparab *hp, t_ray r, float t, t_hit *out)
         v = (y / hp->ry) * 0.5f + 0.5f;
         bump_perturb(hp->bump, u, v, hp->u, hp->v, hp->bump_strength, &out->n);
     }
+			//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	if(hp->material)
+		out->specular = specular_blinn_phong(scene, out, hp->material);
+	else
+		out->specular = v3(0.0f, 0.0f, 0.0f);
     orient_normal(out, r);
     return (1);
 }
@@ -200,7 +251,7 @@ static int	record_hparaboloid(const t_hparab *hp, t_ray r, float t, t_hit *out)
 	
 // }
 
-static int	object_hit(const t_object *obj, t_ray r, t_hit *out)
+static int	object_hit(const t_scene *scene, const t_object *obj, t_ray r, t_hit *out)
 {
 	float	t;
 
@@ -218,12 +269,13 @@ static int	object_hit(const t_object *obj, t_ray r, t_hit *out)
 	if (t <= 0.0f)
 		return (0);
 	if (obj->type == OBJ_SPHERE)
-		return (record_sphere(&obj->u_obj.sp, r, t, out));
+		return (record_sphere(scene, &obj->u_obj.sp, r, t, out));
 	if (obj->type == OBJ_PLANE)
-		return (record_plane(&obj->u_obj.pl, r, t, out));
+		return (record_plane(scene, &obj->u_obj.pl, r, t, out));
 	if (obj->type == OBJ_HPARABOLOID)
-		return (record_hparaboloid(&obj->u_obj.hp, r, t, out));
-	return (record_triangle(&obj->u_obj.tr, r, t, out));
+		return (record_hparaboloid(scene, &obj->u_obj.hp, r, t, out));
+	return (record_triangle(scene, &obj->u_obj.tr, r, t, out));
+	//!!!!!! tengo que añadir el cilindro aqui y añadir a la funcion del cilindro el specular index;
 }
 
 int	scene_hit(const t_scene *scene, t_ray r, float max_dist, t_hit *out)
@@ -239,7 +291,7 @@ int	scene_hit(const t_scene *scene, t_ray r, float max_dist, t_hit *out)
 	o = scene->objects;
 	while (o)
 	{
-		if (object_hit(o, r, &cur) && cur.t > EPSILON && cur.t < best)
+		if (object_hit(scene , o, r, &cur) && cur.t > EPSILON && cur.t < best)
 		{
 			best = cur.t;
 			*out = cur;

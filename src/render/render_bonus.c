@@ -13,7 +13,7 @@ static t_vec3	trace_pixel(const t_scene *scene, t_ray r, int show_normals)
 	if (show_normals && hit.ok)
 		return (v3_mul(v3_add(hit.n, v3(1.0f, 1.0f, 1.0f)), 0.5f));
 		
-	return (shade_lambert_spec(scene, &hit, r));
+	return (shade_lambert_spec(scene, &hit));
 }
 
 void	render_scene(t_app *app)

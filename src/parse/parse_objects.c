@@ -94,6 +94,7 @@ t_parse_result	parse_cy(char **tkns, int line, t_scene *scene)
 		return (object_error(obj, line, "cy: invalid height"));
 	if (!parse_color_255(tkns[5], &obj->u_obj.cy.color))
 		return (object_error(obj, line, "cy: invalid color"));
+	
 	obj->next = NULL;
 	scene_add_object(scene, obj);
 	return (parse_ok());

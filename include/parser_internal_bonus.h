@@ -22,9 +22,9 @@ t_parse_result	dispatch_tokens(char **tokens, int line, t_scene *scene);
 t_parse_result	parse_a(char **tokens, int line, t_scene *scene);
 t_parse_result	parse_c(char **tokens, int line, t_scene *scene);
 t_parse_result	parse_l(char **tokens, int line, t_scene *scene);
-t_parse_result	parse_sp(char **tokens, int line, t_scene *scene);
-t_parse_result	parse_pl(char **tokens, int line, t_scene *scene);
-t_parse_result	parse_cy(char **tokens, int line, t_scene *scene);
+t_parse_result	parse_sp_bo(char **tokens, int line, t_scene *scene);
+t_parse_result	parse_pl_bo(char **tokens, int line, t_scene *scene);
+t_parse_result	parse_cy_bo(char **tokens, int line, t_scene *scene);
 t_parse_result	parse_tr(char **tokens, int line, t_scene *scene);
 t_parse_result	parse_hp(char **tokens, int line, t_scene *scene);
 

@@ -85,6 +85,7 @@ typedef struct s_sphere
 	int		has_bump;
 	float	bump_strength;
 	struct s_bumpmap	*bump;
+	t_material 			*material;
 }	t_sphere;
 
 typedef struct s_plane
@@ -99,6 +100,7 @@ typedef struct s_plane
 	int		has_bump;
 	float	bump_strength;
 	struct s_bumpmap	*bump;
+	t_material 			*material;
 }	t_plane;
 
 typedef struct s_cyl
@@ -108,6 +110,10 @@ typedef struct s_cyl
 	float	di;
 	float	he;
 	t_vec3	color;
+	int		has_bump;
+	float	bump_strength;
+	struct s_bumpmap	*bump;
+	t_material 			*material;
 }	t_cyl;
 
 /*
@@ -128,6 +134,7 @@ typedef struct s_triangle
 	int		has_bump;
 	float	bump_strength;
 	struct s_bumpmap	*bump;
+	t_material 			*material;
 }	t_triangle;
 
 typedef struct s_hparab
@@ -149,6 +156,7 @@ typedef struct s_hparab
 	int		has_bump;
 	float	bump_strength;
 	struct s_bumpmap	*bump;
+	t_material 			*material;
 }	t_hparab;
 
 /*
@@ -180,7 +188,6 @@ typedef struct s_scene
 	t_camera	camera;
 	t_light		light;
 	t_object	*objects;
-	t_material	material;
 }	t_scene;
 
 /* Initialize a scene with defaults and no objects. */

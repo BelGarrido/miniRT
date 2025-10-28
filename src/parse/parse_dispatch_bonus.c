@@ -10,11 +10,11 @@ t_parse_result	dispatch_tokens(char **tokens, int line, t_scene *scene)
 	if (ft_strncmp(tokens[0], "L", 2) == 0)
 		return (parse_l(tokens, line, scene));
 	if (ft_strncmp(tokens[0], "sp", 3) == 0)
-		return (parse_sp(tokens, line, scene));
+		return (parse_sp_bo(tokens, line, scene));
 	if (ft_strncmp(tokens[0], "pl", 3) == 0)
-		return (parse_pl(tokens, line, scene));
+		return (parse_pl_bo(tokens, line, scene));
 	if (ft_strncmp(tokens[0], "cy", 3) == 0)
-		return (parse_cy(tokens, line, scene));
+		return (parse_cy_bo(tokens, line, scene));
 	if (ft_strncmp(tokens[0], "tr", 3) == 0)
 		return (parse_tr(tokens, line, scene));
 	if (ft_strncmp(tokens[0], "hp", 3) == 0)
