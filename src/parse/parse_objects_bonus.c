@@ -55,19 +55,42 @@ static int parse_optional_bump(char **tokens, int idx, int *has_bump,
 	return (1);
 }
 
-bool parse_material(char **tokens, int line, t_object *obj)
+static bool parse_material_tokens(char **tokens, t_material *mat, t_object *obj, int line)
 {
-	if(!parse_float(tokens[0], &obj->u_obj.sp.material->ks))
+	if (!tokens || !tokens[0] || !tokens[1])
+        return (false);
+	if(!parse_float(tokens[0], &mat->ks))
 	{
-		object_error(obj, line, "sp: invalid ks");
+		object_error(obj, line, "invalid ks");
 		return(false);
 	}	
-	if(!parse_float(tokens[1], &obj->u_obj.sp.material->shininess))
+	if(!parse_float(tokens[1], &mat->shininess))
 	{
-		object_error(obj, line, "sp: invalid shininess");
+		object_error(obj, line, "invalid shininess");
 		return(false);
 	}
 	return (true);
+}
+
+static t_parse_result parse_specular_info(char **tokens, t_material **out_mat, t_object *obj, int line)
+{
+	if (!tokens || !tokens[0])
+	{
+		*out_mat = NULL;
+		return (parse_ok());
+	}
+	if (!tokens[1])
+			return (object_error(obj, line, "missing shininess after ks"));
+	*out_mat = malloc(sizeof(**out_mat));
+	if (!*out_mat)
+		return (parse_error(line, "not enough memory for material"));
+	if (!parse_material_tokens(&tokens[0], *out_mat, obj, line))
+	{
+		free(*out_mat);
+		*out_mat = NULL;
+		return (object_error(obj, line, "invalid ks/shininess"));
+	}
+	return(parse_ok());
 }
 
 t_parse_result	parse_sp_bo(char **tokens, int line, t_scene *scene)
@@ -92,10 +115,10 @@ t_parse_result	parse_sp_bo(char **tokens, int line, t_scene *scene)
 	obj->u_obj.sp.has_bump = 0;
 	obj->u_obj.sp.bump_strength = 0.0f;
 	obj->u_obj.sp.bump = NULL;
-	if (tokens[4] && ft_strncmp(tokens[4], "bm", 3) == 0)
+	if (tokens[4] && ft_strncmp(tokens[4], "bm", 2) == 0)
 		done = parse_optional_bump(tokens, 4, &obj->u_obj.sp.has_bump,
 				&obj->u_obj.sp.bump_strength, &obj->u_obj.sp.bump);
-	else if (tokens[4] && ft_strncmp(tokens[4], "bm", 3) == 0)
+	else if (tokens[4] && ft_strncmp(tokens[4], "cb", 2) == 0)
 		done = parse_optional_checker(tokens, 4, &obj->u_obj.sp.has_checker,
 				&obj->u_obj.sp.checker_scale);
 	else
@@ -110,34 +133,11 @@ t_parse_result	parse_sp_bo(char **tokens, int line, t_scene *scene)
 	{
         next_idx = 4; /* no optional -> ks at 4 */
 	}
-
-
-	
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    /* parse optional material (ks + shininess) if present */
-	if (tokens[next_idx])
-	{
-		if (!tokens[next_idx + 1])
-			return (object_error(obj, line, "sp: missing shininess after ks"));
-		obj->u_obj.sp.material = malloc(sizeof(*obj->u_obj.sp.material));
-		if (!obj->u_obj.sp.material)
-			return (parse_error(line, "sp: not enough memory for material"));
-		if (!parse_material(&tokens[next_idx], line, obj))
-		{
-			free(obj->u_obj.sp.material);
-			return (object_error(obj, line, "sp: invalid ks"));
-		}
-	}
-    else
-	{
-        obj->u_obj.sp.material = NULL;
-	}
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	t_parse_result parse_specular = parse_specular_info(&tokens[next_idx], &obj->u_obj.sp.material, obj, line);
+	if (!parse_specular.ok)
+			return (parse_specular);
 	if (!done)
-	{
 		return (object_error(obj, line, "sp: invalid checker (cb <scale>)"));
-	
-	}
 	obj->next = NULL;
 	scene_add_object(scene, obj);
 	return (parse_ok());
@@ -188,16 +188,19 @@ t_parse_result	parse_pl_bo(char **tokens, int line, t_scene *scene)
 	obj->u_obj.pl.has_bump = 0;
 	obj->u_obj.pl.bump_strength = 0.0f;
 	obj->u_obj.pl.bump = NULL;
-	if (tokens[4] && ft_strncmp(tokens[4], "bm", 3) == 0)
+	if (tokens[4] && ft_strncmp(tokens[4], "bm", 2) == 0)
 	{
 		if (!parse_optional_bump(tokens, 4, &obj->u_obj.pl.has_bump,
 				&obj->u_obj.pl.bump_strength, &obj->u_obj.pl.bump))
 			return (object_error(obj, line, "pl: invalid bump (bm <png> <strength>)"));
 	}
-	else if (!parse_optional_checker(tokens, 4, &obj->u_obj.pl.has_checker,
+	else if (tokens[4] && ft_strncmp(tokens[4], "cb", 2) == 0)
+	{
+		if(!parse_optional_checker(tokens, 4, &obj->u_obj.pl.has_checker,
 			&obj->u_obj.pl.checker_scale))
 		return (object_error(obj, line, "pl: invalid checker (cb <scale>)"));
-	    /* determine where ks/shininess appear after optional bm/cb */
+	}
+	/* determine where ks/shininess appear after optional bm/cb */
     int next_idx;
     if (obj->u_obj.pl.has_bump)
         next_idx = 7; /* bm: tokens 4(path) 5(strength) 6 -> ks at 7 */
@@ -207,26 +210,9 @@ t_parse_result	parse_pl_bo(char **tokens, int line, t_scene *scene)
 	{
         next_idx = 4; /* no optional -> ks at 4 */
 	}
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    /* parse optional material (ks + shininess) if present */
-	if (tokens[next_idx])
-	{
-		if (!tokens[next_idx + 1])
-			return (object_error(obj, line, "pl: missing shininess after ks"));
-		obj->u_obj.pl.material = malloc(sizeof(*obj->u_obj.pl.material));
-		if (!obj->u_obj.pl.material)
-			return (parse_error(line, "pl: not enough memory for material"));
-		if (!parse_material(&tokens[next_idx], line, obj))
-		{
-			free(obj->u_obj.pl.material);
-			return (object_error(obj, line, "pl: invalid ks"));
-		}
-	}
-    else
-	{
-        obj->u_obj.pl.material = NULL;
-	}
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	t_parse_result parse_specular = parse_specular_info(&tokens[next_idx], &obj->u_obj.pl.material, obj, line);
+	if (!parse_specular.ok)
+			return (parse_specular);
 	obj->next = NULL;
 	scene_add_object(scene, obj);
 	return (parse_ok());
@@ -271,26 +257,9 @@ t_parse_result	parse_cy_bo(char **tkns, int line, t_scene *scene)
 	{
         next_idx = 4; /* no optional -> ks at 4 */
 	}
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    /* parse optional material (ks + shininess) if present */
-	if (tkns[next_idx])
-	{
-		if (!tkns[next_idx + 1])
-			return (object_error(obj, line, "cy: missing shininess after ks"));
-		obj->u_obj.cy.material = malloc(sizeof(*obj->u_obj.cy.material));
-		if (!obj->u_obj.cy.material)
-			return (parse_error(line, "cy: not enough memory for material"));
-		if (!parse_material(&tkns[next_idx], line, obj))
-		{
-			free(obj->u_obj.cy.material);
-			return (object_error(obj, line, "cy: invalid ks"));
-		}
-	}
-    else
-	{
-        obj->u_obj.cy.material = NULL;
-	}
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	t_parse_result parse_specular = parse_specular_info(&tkns[next_idx], &obj->u_obj.cy.material, obj, line);
+	if (!parse_specular.ok)
+			return (parse_specular);
 	obj->next = NULL;
 	scene_add_object(scene, obj);
 	return (parse_ok());
@@ -396,26 +365,9 @@ t_parse_result	parse_hp(char **tok, int line, t_scene *scene)
 	{
         next_idx = 4; /* no optional -> ks at 4 */
 	}
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    /* parse optional material (ks + shininess) if present */
-	if (tok[next_idx])
-	{
-		if (!tok[next_idx + 1])
-			return (object_error(obj, line, "hp: missing shininess after ks"));
-		obj->u_obj.hp.material = malloc(sizeof(*obj->u_obj.hp.material));
-		if (!obj->u_obj.hp.material)
-			return (parse_error(line, "hp: not enough memory for material"));
-		if (!parse_material(&tok[next_idx], line, obj))
-		{
-			free(obj->u_obj.hp.material);
-			return (object_error(obj, line, "hp: invalid ks"));
-		}
-	}
-    else
-	{
-        obj->u_obj.hp.material = NULL;
-	}
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	t_parse_result parse_specular = parse_specular_info(&tok[next_idx], &obj->u_obj.hp.material, obj, line);
+	if (!parse_specular.ok)
+			return (parse_specular);
 	scene_add_object(scene, obj);
 	return (parse_ok());
 }
@@ -477,26 +429,9 @@ t_parse_result	parse_tr(char **tokens, int line, t_scene *scene)
 	{
         next_idx = 4; /* no optional -> ks at 4 */
 	}
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    /* parse optional material (ks + shininess) if present */
-	if (tokens[next_idx])
-	{
-		if (!tokens[next_idx + 1])
-			return (object_error(obj, line, "tr: missing shininess after ks"));
-		obj->u_obj.tr.material = malloc(sizeof(*obj->u_obj.tr.material));
-		if (!obj->u_obj.tr.material)
-			return (parse_error(line, "tr: not enough memory for material"));
-		if (!parse_material(&tokens[next_idx], line, obj))
-		{
-			free(obj->u_obj.tr.material);
-			return (object_error(obj, line, "tr: invalid ks"));
-		}
-	}
-    else
-	{
-        obj->u_obj.tr.material = NULL;
-	}
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	t_parse_result parse_specular = parse_specular_info(&tokens[next_idx], &obj->u_obj.tr.material, obj, line);
+	if (!parse_specular.ok)
+			return (parse_specular);
 	scene_add_object(scene, obj);
 	return (parse_ok());
 }
